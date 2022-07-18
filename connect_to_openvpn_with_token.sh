@@ -40,16 +40,12 @@ check_tool curl
 check_tool jq
 check_tool openvpn
 
-<< 'MULTILINE-COMMENT'
-This section won't work in FreeBSD because we are not specifying
-which tun we want.  So it's also probably not necessary - it will
-make an unused tun interface.
 # Check if manual PIA OpenVPN connection is already initialized.
 # Multi-hop is out of the scope of this repo, but you should be able to
 # get multi-hop running with both OpenVPN and WireGuard.
-pid_filepath="/opt/piavpn-manual/pia_pid"
-if ifconfig tun1; then
-  echo The tun1 adapter already exists, that interface is required
+pid_filepath="/pia-info/pia_pid"
+if ifconfig tun0; then
+  echo The tun0 adapter already exists, that interface is required
   echo for this configuration.
   if [ -f "$pid_filepath" ]; then
     old_pid="$( cat "$pid_filepath" )"
@@ -63,7 +59,7 @@ if ifconfig tun1; then
       read close_connection
     fi
     if echo ${close_connection:0:1} | grep -iq n ; then
-      echo Closing script. Resolve tun1 adapter conflict and run the script again.
+      echo Closing script. Resolve tun0 adapter conflict and run the script again.
       exit 1
     fi
     echo Killing the existing OpenVPN process and waiting 5 seconds...
@@ -71,7 +67,6 @@ if ifconfig tun1; then
     sleep 5
   fi
 fi
-MULTILINE-COMMENT
 
 # PIA currently does not support IPv6. In order to be sure your VPN
 # connection does not leak, it is best to disabled IPv6 altogether.
@@ -115,13 +110,13 @@ if [[ ! $OVPN_SERVER_IP ||
 fi
 
 # Create a credentials file with the login token
-echo "Trying to write /opt/piavpn-manual/pia.ovpn...
+echo "Trying to write /pia-info/pia.ovpn...
 "
-mkdir -p /opt/piavpn-manual
-rm -f /opt/piavpn-manual/credentials /opt/piavpn-manual/route_info
-echo "Removing old credentials and route_info from /opt/piavpn-manual/"
+mkdir -p /pia-info
+rm -f /pia-info/credentials /pia-info/route_info
+echo "Removing old credentials and route_info from /pia-info/"
 echo ${PIA_TOKEN:0:62}"
-"${PIA_TOKEN:62} > /opt/piavpn-manual/credentials || exit 1
+"${PIA_TOKEN:62} > /pia-info/credentials || exit 1
 
 # Translate connection settings variable
 IFS='_'
@@ -150,14 +145,14 @@ else
 fi
 
 # Create the OpenVPN config based on the settings specified
-cat $prefix_filepath > /opt/piavpn-manual/pia.ovpn || exit 1
-echo remote $OVPN_SERVER_IP $port $protocol >> /opt/piavpn-manual/pia.ovpn
+cat $prefix_filepath > /pia-info/pia.ovpn || exit 1
+echo remote $OVPN_SERVER_IP $port $protocol >> /pia-info/pia.ovpn
 
-# Copy the up/down scripts to /opt/piavpn-manual/
+# Copy the up/down scripts to /pia-info/
 # based upon use of PIA DNS
 if [ "$PIA_DNS" != true ]; then
-  cp openvpn_config/openvpn_up.sh /opt/piavpn-manual/
-  cp openvpn_config/openvpn_down.sh /opt/piavpn-manual/
+  cp openvpn_config/openvpn_up.sh /pia-info/
+  cp openvpn_config/openvpn_down.sh /pia-info/
   echo This configuration will not use PIA DNS.
   echo If you want to also enable PIA DNS, please start the script
   echo with the env var PIA_DNS=true. Example:
@@ -165,21 +160,21 @@ if [ "$PIA_DNS" != true ]; then
     PIA_TOKEN=\"$PIA_TOKEN\" CONNECTION_SETTINGS=\"$CONNECTION_SETTINGS\" \
     PIA_PF=true PIA_DNS=true ./connect_to_openvpn_with_token.sh
 else
-  cp openvpn_config/openvpn_up_dnsoverwrite.sh /opt/piavpn-manual/openvpn_up.sh
-  cp openvpn_config/openvpn_down_dnsoverwrite.sh /opt/piavpn-manual/openvpn_down.sh
+  cp openvpn_config/openvpn_up_dnsoverwrite.sh /pia-info/openvpn_up.sh
+  cp openvpn_config/openvpn_down_dnsoverwrite.sh /pia-info/openvpn_down.sh
 fi
 
 # Start the OpenVPN interface.
 # If something failed, stop this script.
 # If you get DNS errors because you miss some packages,
 # just hardcode /etc/resolv.conf to "nameserver 10.0.0.242".
-#rm -f /opt/piavpn-manual/debug_info
+#rm -f /pia-info/debug_info
 echo "
 Trying to start the OpenVPN connection..."
 openvpn --daemon \
-  --config "/opt/piavpn-manual/pia.ovpn" \
-  --writepid "/opt/piavpn-manual/pia_pid" \
-  --log "/opt/piavpn-manual/debug_info" || exit 1
+  --config "/pia-info/pia.ovpn" \
+  --writepid "/pia-info/pia_pid" \
+  --log "/pia-info/debug_info" || exit 1
 
 echo "
 The OpenVPN connect command was issued.
@@ -193,22 +188,22 @@ confirmation="Initialization Sequence Complete"
 for (( timeout=0; timeout <=$connection_wait_time; timeout++ ))
 do
   sleep 1
-  if grep -q "$confirmation" /opt/piavpn-manual/debug_info; then
+  if grep -q "$confirmation" /pia-info/debug_info; then
     connected=true
     break
   fi
 done
 
-ovpn_pid="$( cat /opt/piavpn-manual/pia_pid )"
-echo "Reading gateway_ip from /opt/piavpn-manual/route_info"
-gateway_ip="$( cat /opt/piavpn-manual/route_info )"
+ovpn_pid="$( cat /pia-info/pia_pid )"
+echo "Reading gateway_ip from /pia-info/route_info"
+gateway_ip="$( cat /pia-info/route_info )"
 
 # Report and exit if connection was not initialized within 10 seconds.
 if [ "$connected" != true ]; then
   echo "The VPN connection was not established within 10 seconds."
   kill $ovpn_pid
-  echo \n"Openvpn debug info at /opt/piavpn-manual/debug_info:"
-  cat  /opt/piavpn-manual/debug_info
+  echo \n"Openvpn debug info at /pia-info/debug_info:"
+  cat  /pia-info/debug_info
   exit 1
 fi
 

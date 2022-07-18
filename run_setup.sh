@@ -20,11 +20,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Only allow script to run as
+# Only allow script to run as root
+
+now="$(date)"
+
 echo "
 ################################
     run_setup.sh
 ################################
+
+Starting script at $now
 "
 
 if [ "$(whoami)" != "root" ]; then
@@ -38,7 +43,7 @@ fi
 # just so they don't show on github
 # Username on first line, password on second
 declare -a creds # an array
-readarray -t creds </usr/local/etc/openvpn/pass.txt
+readarray -t creds < /pia-info/pia_creds.txt
 PIA_USER="${creds[0]}"
 PIA_PASS="${creds[1]}"
 echo "Retrieved credentials"
@@ -46,9 +51,13 @@ export PIA_USER
 export PIA_PASS
 
 protocol="udp"
-encryption="standard"
-PIA_AUTOCONNECT="openvpn_${protocol}_${encryption}"
+encryption="strong"
+
+# To use openvn remove # from start of that line and add it to start of "PIA_AUTOCONNECT=wireguard"
+#PIA_AUTOCONNECT="openvpn_${protocol}_${encryption}"
+PIA_AUTOCONNECT=wireguard
 export PIA_AUTOCONNECT
+
 PIA_DNS="false"
 export PIA_DNS
 PIA_PF="true"
